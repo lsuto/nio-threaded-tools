@@ -7,7 +7,7 @@ This will allow you to seamlessly use non-blocking NIO sockets in a thread pool.
 Sample code below.
 
 = Details =
-
+{{{
 
 	@Test
 	public void testSingleThread() throws IOException, InterruptedException {
@@ -101,3 +101,5 @@ Sample code below.
 		server.shutdown();
 
 	}
+
+}}}
