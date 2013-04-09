@@ -29,12 +29,17 @@ public class SeriServer implements Runnable {
 	private int sleep_time;
 	private int timeout;
 
+	
 	private ExecutorService executor;
 	private int port;
 	private boolean running;
 	Vector<SeriDataPackage> dataStore;
 	private Thread tread;
 	private SeriProcessor processor = null;
+
+	public SeriServer() {
+
+	}
 
 	public SeriServer(int port) throws IOException {
 		this(port, DEFAULT_THREAD_COUNT);
@@ -48,13 +53,13 @@ public class SeriServer implements Runnable {
 		this.nthreads = nthreads;
 		this.dataStore = new Vector<SeriDataPackage>();
 
-		start();
-	}
-
-	public void start() throws IOException {
 		selector = Selector.open();
 		server = ServerSocketChannel.open();
+
 		server.socket().bind(new InetSocketAddress(port));
+		
+		this.port = server.socket().getLocalPort();
+		
 		server.configureBlocking(false);
 		server.register(selector, SelectionKey.OP_ACCEPT);
 		executor = Executors.newFixedThreadPool(this.nthreads);
@@ -95,7 +100,7 @@ public class SeriServer implements Runnable {
 		}
 	}
 
-	public void reply(SeriDataPackage datapack, Serializable objectToSend)
+	public static void reply(SeriDataPackage datapack, Serializable objectToSend)
 			throws IOException {
 
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -265,6 +270,10 @@ public class SeriServer implements Runnable {
 
 	public void setProcessor(SeriProcessor processor) {
 		this.processor = processor;
+	}
+
+	public int getPort() {
+		return port;
 	}
 
 }
