@@ -58,12 +58,18 @@ public class TestStuff {
 
 		assertEquals(msg + msg, fromServer.getObject());
 
+		// test sending nulls
+		client.send(null);
+		SeriDataPackage shouldBeNull = server.read();
+
+		System.out.println("Should be null: " + shouldBeNull.getObject());
+
 		client.shutdown();
 		server.shutdown();
 	}
-	
+
 	@Test
-	public void testProcessor() throws IOException{
+	public void testProcessor() throws IOException {
 		String msg = "wildcards all around please!";
 		final SeriServer server = new SeriServer(5003, 3);
 		server.setProcessor(new SeriProcessor() {
@@ -75,20 +81,19 @@ public class TestStuff {
 				} catch (IOException e) {
 					e.printStackTrace();
 					fail();
-				}				
+				}
 			}
 		});
-				
-		
+
 		SeriClient client = new SeriClient("localhost", 5003);
 		client.send(msg);
-	
+
 		SeriDataPackage response = client.read();
 
 		System.out.println(response.getObject());
 		assertEquals("*" + msg + "*", response.getObject());
 		server.shutdown();
-	} 
+	}
 
 	@Test
 	public void testMultipleThreads() throws IOException, InterruptedException {
