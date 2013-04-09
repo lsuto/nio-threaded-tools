@@ -48,20 +48,35 @@ public class SeriClient {
 
 	public SeriDataPackage read() throws IOException {
 		ByteBuffer lengthByteBuffer = ByteBuffer.wrap(new byte[4]);
+		long startTime = System.currentTimeMillis();
 
-		// read from socket, should return the data size
-		int err = socket.read(lengthByteBuffer);
-		if (err == -1) {
-			socket.close();
-			return null;
-		}
+		do {
+			// read from socket, should return the data size
+			int err = socket.read(lengthByteBuffer);
+			if (err == -1) {
+				socket.close();
+				return null;
+			}
+
+			// Socket times out
+			if (System.currentTimeMillis() - startTime > this.timeout) {
+				socket.close();
+				return null;
+			}
+
+			try {
+				Thread.sleep(this.sleep_time);
+			} catch (InterruptedException e) {
+			}
+			
+		} while (lengthByteBuffer.remaining() != 0);
 
 		ByteBuffer dataByteBuffer = ByteBuffer.allocate(lengthByteBuffer
 				.getInt(0));
 
-		long startTime = System.currentTimeMillis();
+		int size = lengthByteBuffer.getInt(0);
 		while (true) {
-			err = socket.read(dataByteBuffer);
+			int err = socket.read(dataByteBuffer);
 			if (err == -1) {
 				socket.close();
 				return null;

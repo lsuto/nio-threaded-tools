@@ -9,6 +9,7 @@ import java.util.HashMap;
 
 import org.feiteira.network.SeriClient;
 import org.feiteira.network.SeriDataPackage;
+import org.feiteira.network.SeriProcessor;
 import org.feiteira.network.SeriServer;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -60,6 +61,34 @@ public class TestStuff {
 		client.shutdown();
 		server.shutdown();
 	}
+	
+	@Test
+	public void testProcessor() throws IOException{
+		String msg = "wildcards all around please!";
+		final SeriServer server = new SeriServer(5003, 3);
+		server.setProcessor(new SeriProcessor() {
+			@Override
+			public void process(SeriDataPackage pack) {
+				try {
+					System.out.println("Processing: " + pack.getObject());
+					server.reply(pack, "*" + pack.getObject().toString() + "*");
+				} catch (IOException e) {
+					e.printStackTrace();
+					fail();
+				}				
+			}
+		});
+				
+		
+		SeriClient client = new SeriClient("localhost", 5003);
+		client.send(msg);
+	
+		SeriDataPackage response = client.read();
+
+		System.out.println(response.getObject());
+		assertEquals("*" + msg + "*", response.getObject());
+		server.shutdown();
+	} 
 
 	@Test
 	public void testMultipleThreads() throws IOException, InterruptedException {
