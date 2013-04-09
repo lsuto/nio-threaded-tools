@@ -34,6 +34,7 @@ public class SeriServer implements Runnable {
 	private boolean running;
 	Vector<SeriDataPackage> dataStore;
 	private Thread tread;
+	private SeriProcessor processor = null;
 
 	public SeriServer(int port) throws IOException {
 		this(port, DEFAULT_THREAD_COUNT);
@@ -135,6 +136,8 @@ public class SeriServer implements Runnable {
 	}
 
 	public class SeriWorker implements Runnable {
+		final SeriServer outer = SeriServer.this;
+
 		private SelectionKey key;
 
 		public SeriWorker(SelectionKey key) {
@@ -163,7 +166,10 @@ public class SeriServer implements Runnable {
 				if (key.isReadable()) {
 					SeriDataPackage object = read(key);
 					if (object != null)
-						dataStore.add(object);
+						if (outer.getProcessor() == null)
+							dataStore.add(object);
+						else
+							outer.getProcessor().process(object);
 				}
 			} catch (IOException e) {
 				throw new RuntimeException(e);
@@ -251,6 +257,14 @@ public class SeriServer implements Runnable {
 
 	public void setTimeout(int timeout) {
 		this.timeout = timeout;
+	}
+
+	public SeriProcessor getProcessor() {
+		return processor;
+	}
+
+	public void setProcessor(SeriProcessor processor) {
+		this.processor = processor;
 	}
 
 }
