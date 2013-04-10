@@ -21,7 +21,8 @@ public class SeriServer implements Runnable {
 
 	public static final int DEFAULT_THREAD_COUNT = 10;
 	public static final int DEFAULT_SLEEP_TIME = 10;
-	public static final int DEFAULT_TIMEOUT = 5000;
+	public static final int DEFAULT_TIMEOUT = 15000;
+	public static final int DEFAULT_SELECTOR_TIMEOUT = 1000;
 
 	private Selector selector;
 	private ServerSocketChannel server;
@@ -29,7 +30,6 @@ public class SeriServer implements Runnable {
 	private int sleep_time;
 	private int timeout;
 
-	
 	private ExecutorService executor;
 	private int port;
 	private boolean running;
@@ -37,8 +37,13 @@ public class SeriServer implements Runnable {
 	private Thread tread;
 	private SeriProcessor processor = null;
 
-	public SeriServer() {
+	private Object shutdownLock = null;
 
+	private boolean shutdownFinished;
+
+	public SeriServer() {
+		this.shutdownFinished = false;
+		shutdownLock = new Object();
 	}
 
 	public SeriServer(int port) throws IOException {
@@ -46,6 +51,7 @@ public class SeriServer implements Runnable {
 	}
 
 	public SeriServer(int port, int nthreads) throws IOException {
+		this();
 		this.port = port;
 		this.sleep_time = DEFAULT_SLEEP_TIME;
 		this.timeout = DEFAULT_TIMEOUT;
@@ -57,9 +63,9 @@ public class SeriServer implements Runnable {
 		server = ServerSocketChannel.open();
 
 		server.socket().bind(new InetSocketAddress(port));
-		
+
 		this.port = server.socket().getLocalPort();
-		
+
 		server.configureBlocking(false);
 		server.register(selector, SelectionKey.OP_ACCEPT);
 		executor = Executors.newFixedThreadPool(this.nthreads);
@@ -72,13 +78,14 @@ public class SeriServer implements Runnable {
 	@Override
 	public void run() {
 
-		while (this.running) {
+		while (this.running || !selector.selectedKeys().isEmpty()) {
 			try {
-				selector.select();
+				selector.select(DEFAULT_SELECTOR_TIMEOUT);
 			} catch (IOException e) {
+				this.shutdownFinished = true;
+				this.running = false;
 				throw new RuntimeException(e);
 			}
-
 			try {
 				for (Iterator<SelectionKey> i = selector.selectedKeys()
 						.iterator(); i.hasNext();) {
@@ -88,16 +95,42 @@ public class SeriServer implements Runnable {
 					SeriWorker worker = new SeriWorker(key);
 					this.executor.execute(worker);
 				}
-				try {
-					Thread.sleep(DEFAULT_SLEEP_TIME);
-				} catch (InterruptedException e) {
-				}
-
 			} catch (java.nio.channels.ClosedSelectorException e) {
-				if (this.running)
+				if (this.running) {
+					this.shutdownFinished = true;
+					this.running = false;
 					throw new RuntimeException(e);
+				}
+			}
+
+			// rest for a bit
+			try {
+				Thread.sleep(DEFAULT_SLEEP_TIME);
+			} catch (InterruptedException e) {
 			}
 		}
+		// CLOSING server...
+		executor.shutdown();
+		try {
+			selector.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		try {
+			server.socket().close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		try {
+			server.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		synchronized (shutdownLock) {
+			shutdownLock.notify();
+		}
+		this.shutdownFinished = true;
 	}
 
 	public static void reply(SeriDataPackage datapack, Serializable objectToSend)
@@ -132,12 +165,22 @@ public class SeriServer implements Runnable {
 
 	}
 
-	public void shutdown() throws IOException {
+	public void shutdown() {
+		try {
+			synchronized (shutdownLock) {
+				this.running = false;
+				shutdownLock.wait();
+			}
+			System.out.println("Done " + this.toString());
+
+		} catch (InterruptedException e) {
+			// Best effort here..
+			e.printStackTrace();
+		}
+	}
+
+	public void shutdownASYNC() {
 		this.running = false;
-		executor.shutdownNow();
-		selector.close();
-		server.socket().close();
-		server.close();
 	}
 
 	public class SeriWorker implements Runnable {
@@ -155,17 +198,17 @@ public class SeriServer implements Runnable {
 			try {
 
 				if (key.isConnectable()) {
-					System.out.println("Connection established: " + key);
 					((SocketChannel) key.channel()).finishConnect();
 				}
 				if (key.isAcceptable()) {
-					System.out.println("Accepted connection: " + key);
 
 					// accept connection
 					SocketChannel client = server.accept();
-					client.configureBlocking(false);
-					client.socket().setTcpNoDelay(true);
-					client.register(selector, SelectionKey.OP_READ);
+					if (client != null) {
+						client.configureBlocking(false);
+						client.socket().setTcpNoDelay(true);
+						client.register(selector, SelectionKey.OP_READ);
+					}
 				}
 
 				if (key.isReadable()) {
@@ -194,8 +237,11 @@ public class SeriServer implements Runnable {
 			return null;
 		}
 
-		ByteBuffer dataByteBuffer = ByteBuffer.allocate(lengthByteBuffer
-				.getInt(0));
+		int serisize = lengthByteBuffer.getInt(0);
+		if (serisize == 0)
+			return null;
+
+		ByteBuffer dataByteBuffer = ByteBuffer.allocate(serisize);
 
 		long startTime = System.currentTimeMillis();
 		while (true) {
@@ -207,6 +253,7 @@ public class SeriServer implements Runnable {
 			}
 
 			if (dataByteBuffer.remaining() == 0) {
+
 				ObjectInputStream ois = new ObjectInputStream(
 						new ByteArrayInputStream(dataByteBuffer.array()));
 				Serializable retObj;
@@ -274,6 +321,10 @@ public class SeriServer implements Runnable {
 
 	public int getPort() {
 		return port;
+	}
+
+	public boolean isShutdown() {
+		return this.shutdownFinished;
 	}
 
 }
