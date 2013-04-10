@@ -89,9 +89,15 @@ public class TestStuff {
 		client.send(msg);
 
 		SeriDataPackage response = client.read();
-
 		System.out.println(response.getObject());
 		assertEquals("*" + msg + "*", response.getObject());
+		
+		client.send("A");
+		response = client.read();
+		System.out.println(response.getObject());
+		assertEquals("*A*", response.getObject());
+
+		
 		server.shutdown();
 	}
 
