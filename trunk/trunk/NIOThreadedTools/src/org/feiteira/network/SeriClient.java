@@ -54,6 +54,7 @@ public class SeriClient {
 			// read from socket, should return the data size
 			int err = socket.read(lengthByteBuffer);
 			if (err == -1) {
+
 				socket.close();
 				return null;
 			}
@@ -68,13 +69,13 @@ public class SeriClient {
 				Thread.sleep(this.sleep_time);
 			} catch (InterruptedException e) {
 			}
-			
+
 		} while (lengthByteBuffer.remaining() != 0);
 
 		ByteBuffer dataByteBuffer = ByteBuffer.allocate(lengthByteBuffer
 				.getInt(0));
 
-		int size = lengthByteBuffer.getInt(0);
+		// int size = lengthByteBuffer.getInt(0);
 		while (true) {
 			int err = socket.read(dataByteBuffer);
 			if (err == -1) {
@@ -124,6 +125,7 @@ public class SeriClient {
 		final ByteBuffer wrap = ByteBuffer.wrap(baos.toByteArray());
 		wrap.putInt(0, baos.size() - 4);
 		socket.write(wrap);
+
 	}
 
 	public String getHost() {

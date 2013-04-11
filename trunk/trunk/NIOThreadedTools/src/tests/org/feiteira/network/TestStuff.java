@@ -37,17 +37,24 @@ public class TestStuff {
 
 	@Test
 	public void testSingleThread() throws IOException, InterruptedException {
+		int port = 5100;
 
 		String msg = "Simple Test!";
-		SeriServer server = new SeriServer(5000, 1);
 
-		SeriClient client = new SeriClient("localhost", 5000);
+		System.out.println("Starting server.");
+		SeriServer server = new SeriServer(port, 2);
 
+		System.out.println("Starting client.");
+		SeriClient client = new SeriClient("localhost", port);
+
+		System.out.println("[Client] Sending message: " + msg);
 		client.send(msg);
+		System.out.println("[Server] Reading message: " + msg);
 
 		SeriDataPackage fromClient = server.read();
 
 		System.out.println("From Client: " + fromClient.getObject());
+		
 		assertEquals(msg, fromClient.getObject());
 
 		server.reply(fromClient, msg + msg);
@@ -64,14 +71,28 @@ public class TestStuff {
 
 		System.out.println("Should be null: " + shouldBeNull.getObject());
 
+		int MX = 10;
+		for (int cnt = 0; cnt < MX; cnt++) {
+			client.send(new Integer(cnt));
+			SeriDataPackage pack = server.read();
+			int ret = (Integer) pack.getObject();
+			SeriServer.reply(pack, new Integer(ret * ret));
+			pack = client.read();
+			System.out.println("Client [" + cnt + "]: " + pack.getObject());
+			assertEquals(cnt*cnt, pack.getObject());
+		}
+
+		System.out.println("Client shutting down");
 		client.shutdown();
+		System.out.println("Server shutting down");
 		server.shutdown();
 	}
 
 	@Test
-	public void testProcessor() throws IOException {
+	public void testProcessor() throws IOException, InterruptedException {
+		int port = 6500;
 		String msg = "wildcards all around please!";
-		final SeriServer server = new SeriServer(5003, 3);
+		final SeriServer server = new SeriServer(port, 3);
 		server.setProcessor(new SeriProcessor() {
 			@Override
 			public void process(SeriDataPackage pack) {
@@ -85,19 +106,20 @@ public class TestStuff {
 			}
 		});
 
-		SeriClient client = new SeriClient("localhost", 5003);
+		Thread.sleep(150);
+		SeriClient client = new SeriClient("localhost", port);
 		client.send(msg);
 
 		SeriDataPackage response = client.read();
+
 		System.out.println(response.getObject());
 		assertEquals("*" + msg + "*", response.getObject());
-		
+
 		client.send("A");
 		response = client.read();
 		System.out.println(response.getObject());
 		assertEquals("*A*", response.getObject());
 
-		
 		server.shutdown();
 	}
 
