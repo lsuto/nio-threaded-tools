@@ -36,28 +36,47 @@ public class TestStuff {
 	}
 
 	@Test
-	public void testSingleThread() throws IOException, InterruptedException {
+	public void testThreads() throws IOException, InterruptedException {
 		int port = 5100;
 
 		String msg = "Simple Test!";
 
 		System.out.println("Starting server.");
-		SeriServer server = new SeriServer(port, 2);
+		SeriServer server = new SeriServer(port, 3);
 
 		System.out.println("Starting client.");
 		SeriClient client = new SeriClient("localhost", port);
 
+		server.setProcessor(new SeriProcessor() {
+
+			@Override
+			public void process(SeriDataPackage pack) {
+				System.out.println("[Server] Reading message: "
+						+ pack.getObject());
+				try {
+
+					if (pack.getObject() != null) {
+						String msg = pack.getObject().toString();
+						SeriServer.reply(pack, msg+msg);
+					} else
+						SeriServer.reply(pack, null);
+
+				} catch (IOException e) {
+					e.printStackTrace();
+					fail();
+				}
+
+			}
+
+			@Override
+			public void shutdownCompleted() {
+				// TODO Auto-generated method stub
+				
+			}
+		});
+
 		System.out.println("[Client] Sending message: " + msg);
 		client.send(msg);
-		System.out.println("[Server] Reading message: " + msg);
-
-		SeriDataPackage fromClient = server.read();
-
-		System.out.println("From Client: " + fromClient.getObject());
-		
-		assertEquals(msg, fromClient.getObject());
-
-		server.reply(fromClient, msg + msg);
 
 		SeriDataPackage fromServer = client.read();
 
@@ -67,125 +86,41 @@ public class TestStuff {
 
 		// test sending nulls
 		client.send(null);
-		SeriDataPackage shouldBeNull = server.read();
 
-		System.out.println("Should be null: " + shouldBeNull.getObject());
+		assertNull(client.read().getObject());
+		
+		server.setProcessor(new SeriProcessor() {
+			
+			@Override
+			public void process(SeriDataPackage pack) {
+				int v = (Integer) pack.getObject();
+				try {
+					SeriServer.reply(pack, new Integer(v*v));
+				} catch (IOException e) {
+					e.printStackTrace();
+					fail();
+				}
 
-		int MX = 10;
+			}
+
+			@Override
+			public void shutdownCompleted() {
+				// TODO Auto-generated method stub
+				
+			}
+		});
+		
+		int MX = 100;
 		for (int cnt = 0; cnt < MX; cnt++) {
 			client.send(new Integer(cnt));
-			SeriDataPackage pack = server.read();
-			int ret = (Integer) pack.getObject();
-			SeriServer.reply(pack, new Integer(ret * ret));
-			pack = client.read();
+			SeriDataPackage pack = client.read();
 			System.out.println("Client [" + cnt + "]: " + pack.getObject());
-			assertEquals(cnt*cnt, pack.getObject());
+			assertEquals(cnt * cnt, pack.getObject());
 		}
 
 		System.out.println("Client shutting down");
 		client.shutdown();
 		System.out.println("Server shutting down");
 		server.shutdown();
-	}
-
-	@Test
-	public void testProcessor() throws IOException, InterruptedException {
-		int port = 6500;
-		String msg = "wildcards all around please!";
-		final SeriServer server = new SeriServer(port, 3);
-		server.setProcessor(new SeriProcessor() {
-			@Override
-			public void process(SeriDataPackage pack) {
-				try {
-					System.out.println("Processing: " + pack.getObject());
-					server.reply(pack, "*" + pack.getObject().toString() + "*");
-				} catch (IOException e) {
-					e.printStackTrace();
-					fail();
-				}
-			}
-		});
-
-		Thread.sleep(150);
-		SeriClient client = new SeriClient("localhost", port);
-		client.send(msg);
-
-		SeriDataPackage response = client.read();
-
-		System.out.println(response.getObject());
-		assertEquals("*" + msg + "*", response.getObject());
-
-		client.send("A");
-		response = client.read();
-		System.out.println(response.getObject());
-		assertEquals("*A*", response.getObject());
-
-		server.shutdown();
-	}
-
-	@Test
-	public void testMultipleThreads() throws IOException, InterruptedException {
-		final int nthreads = 1;
-		final int nclients = 50;
-		final int nsends = 2000;
-
-		SeriServer server = new SeriServer(6001, nthreads);
-
-		final SeriClient client[] = new SeriClient[nclients];
-
-		for (int cnt = 0; cnt < nclients; cnt++) {
-			final int counterVal = cnt;
-			client[cnt] = new SeriClient("localhost", 6001);
-			Thread t = new Thread(new Runnable() {
-
-				@Override
-				public void run() {
-					try {
-						for (int cnt2 = 0; cnt2 < nsends; cnt2++) {
-							String msg = "[" + counterVal + "]";
-							// System.out.println("Sending:" + msg);
-							client[counterVal].send(msg);
-						}
-					} catch (IOException e) {
-						e.printStackTrace();
-						fail();
-					}
-				}
-			});
-			t.start();
-		}
-
-		HashMap<String, Integer> counts = new HashMap<String, Integer>();
-		int nullCounts = 0;
-		for (int cnt = 0; cnt < nsends * nclients;) {
-			SeriDataPackage data = server.read();
-			if (data == null) {
-				nullCounts++;
-				System.out.println("NULL");
-				continue;
-			}
-
-			if (counts.containsKey(data.getObject())) {
-				Integer c = counts.get(data.getObject());
-				counts.put((String) data.getObject(), c + 1);
-			} else {
-				counts.put((String) data.getObject(), 1);
-			}
-			cnt++;
-			System.out.println("Received: " + data.getObject());
-		}
-
-		Collection<Integer> values = counts.values();
-		for (Integer value : values) {
-			int ivalue = value;
-			assertEquals(nsends, ivalue);
-			System.out.println(value);
-		}
-		assertEquals(counts.size(), nclients);
-		System.out.println(counts.size());
-
-		System.out.println("Finishing");
-		server.shutdown();
-
 	}
 }
