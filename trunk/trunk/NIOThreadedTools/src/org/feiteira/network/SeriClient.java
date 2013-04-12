@@ -10,7 +10,11 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
+import org.apache.log4j.Logger;
+
 public class SeriClient {
+	private static Logger log = Logger.getLogger(SeriClient.class);
+
 	public static final int DEFAULT_SLEEP_TIME = 10;
 	public static final int DEFAULT_TIMEOUT = 5000;
 
@@ -21,12 +25,19 @@ public class SeriClient {
 	private int sleep_time;
 	private int timeout;
 
+	
+	private String logTag = "";
+
 	public SeriClient(String host, int port) throws IOException {
 		this.host = host;
 		this.port = port;
 		this.sleep_time = DEFAULT_SLEEP_TIME;
 		this.timeout = DEFAULT_TIMEOUT;
 
+		reconnect();
+	}
+
+	public void reconnect() throws IOException {
 		socket = SocketChannel.open();
 		socket.configureBlocking(false);
 		InetSocketAddress ineta = new InetSocketAddress(host, port);
@@ -158,5 +169,13 @@ public class SeriClient {
 		} catch (IOException e) {
 			// I really don't care..
 		}
+	}
+
+	public String getLogTag() {
+		return logTag;
+	}
+
+	public void setLogTag(String logTag) {
+		this.logTag = logTag;
 	}
 }
