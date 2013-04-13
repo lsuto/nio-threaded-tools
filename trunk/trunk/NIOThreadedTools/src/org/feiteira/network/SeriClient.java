@@ -25,7 +25,6 @@ public class SeriClient {
 	private int sleep_time;
 	private int timeout;
 
-	
 	private String logTag = "";
 
 	public SeriClient(String host, int port) throws IOException {
@@ -135,7 +134,12 @@ public class SeriClient {
 		oos.close();
 		final ByteBuffer wrap = ByteBuffer.wrap(baos.toByteArray());
 		wrap.putInt(0, baos.size() - 4);
-		socket.write(wrap);
+		try {
+			socket.write(wrap);
+		} catch (IOException e) {
+			log.warn(objectToSend);
+			throw new IOException(e);
+		}
 
 	}
 
