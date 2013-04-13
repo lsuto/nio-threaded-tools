@@ -88,8 +88,8 @@ public class SeriServer implements Runnable {
 
 		this.state = STATE_RUNNING;
 		this.tread = new Thread(this);
+		
 		tread.start();
-
 	}
 
 	@Override
@@ -106,11 +106,15 @@ public class SeriServer implements Runnable {
 				this.state = STATE_SHUTTING_DOWN_2;
 				// stops accepting new connections
 				try {
-					this.server.register(selector, 0);
+					this.server.close();
+					//this.server.register(selector, 0);
+					
 				} catch (ClosedChannelException e1) {
 					// don't really care, I'm shutting down
 					log.warn(logTag + "Closed channel");
 					break;
+				} catch (IOException e) {
+					log.error(logTag + "Could not close server socket ",e);					
 				}
 				startShuttingDownTime = System.currentTimeMillis();
 			}
@@ -139,7 +143,7 @@ public class SeriServer implements Runnable {
 						handleConnection(key);
 					} catch (IOException e) {
 						key.cancel();
-						e.printStackTrace();
+						log.warn("Failed to handle connection", e);
 					}
 				}
 			} catch (java.nio.channels.ClosedSelectorException e) {
