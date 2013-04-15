@@ -12,8 +12,8 @@ import java.nio.channels.SocketChannel;
 
 import org.apache.log4j.Logger;
 
-public class SeriClient {
-	private static Logger log = Logger.getLogger(SeriClient.class);
+public class SeriConnection {
+	private static Logger log = Logger.getLogger(SeriConnection.class);
 
 	public static final int DEFAULT_SLEEP_TIME = 10;
 	public static final int DEFAULT_TIMEOUT = 5000;
@@ -27,7 +27,7 @@ public class SeriClient {
 
 	private String logTag = "";
 
-	public SeriClient(String host, int port) throws IOException {
+	public SeriConnection(String host, int port) throws IOException {
 		this.host = host;
 		this.port = port;
 		this.sleep_time = DEFAULT_SLEEP_TIME;

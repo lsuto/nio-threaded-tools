@@ -49,26 +49,31 @@ public class SeriServer implements Runnable {
 	private int port;
 	Vector<SeriDataPackage> dataStore;
 	private Thread tread;
-	private SeriProcessor processor = null;
+	private SeriEventHandler processor = null;
 
 	private Object shutdownLock = null;
 
 	private int state;
 
-	private String logTag = "";
+	private String tag = "";
+
+	public static int nullcount;
 
 	public SeriServer() {
+
 		this.state = STATE_NOT_STARTED;
 		shutdownLock = new Object();
-		log.setLevel(Level.WARN);
+
+		log.setLevel(Level.DEBUG);
 	}
 
 	public SeriServer(int port) throws IOException {
 		this(port, DEFAULT_THREAD_COUNT);
 	}
 
-	public SeriServer(int port, int nthreads) throws IOException {
+	public SeriServer(int port, int nthreads, String tag) throws IOException {
 		this();
+		this.setLogTag(tag);
 		this.port = port;
 		this.timeout = DEFAULT_TIMEOUT;
 
@@ -88,8 +93,12 @@ public class SeriServer implements Runnable {
 
 		this.state = STATE_RUNNING;
 		this.tread = new Thread(this);
-		
+
 		tread.start();
+	}
+
+	public SeriServer(int port, int nthreads) throws IOException {
+		this(port, nthreads, null);
 	}
 
 	@Override
@@ -107,14 +116,13 @@ public class SeriServer implements Runnable {
 				// stops accepting new connections
 				try {
 					this.server.close();
-					//this.server.register(selector, 0);
-					
+					// this.server.register(selector, 0);
 				} catch (ClosedChannelException e1) {
 					// don't really care, I'm shutting down
-					log.warn(logTag + "Closed channel");
+					log.warn(tag + "Closed channel");
 					break;
 				} catch (IOException e) {
-					log.error(logTag + "Could not close server socket ",e);					
+					log.error(tag + "Could not close server socket ", e);
 				}
 				startShuttingDownTime = System.currentTimeMillis();
 			}
@@ -129,7 +137,7 @@ public class SeriServer implements Runnable {
 			Set<SelectionKey> keys = selector.selectedKeys();
 			if (this.state == STATE_SHUTTING_DOWN_2 && keys.size() == 0) {
 				// shutting donw and no pending data
-				log.debug(logTag + "SeriServer: No more data, shutting down.");
+				log.debug(tag + "SeriServer: No more data, shutting down.");
 				break;
 			}
 
@@ -144,6 +152,8 @@ public class SeriServer implements Runnable {
 					} catch (IOException e) {
 						key.cancel();
 						log.warn("Failed to handle connection", e);
+					} catch (java.nio.channels.CancelledKeyException e) {
+						log.info(tag + "Connection closed by client.");
 					}
 				}
 			} catch (java.nio.channels.ClosedSelectorException e) {
@@ -162,43 +172,7 @@ public class SeriServer implements Runnable {
 		}
 
 		// CLOSING server...
-
-		executor.shutdown();
-
-		while (!executor.isShutdown()
-				&& System.currentTimeMillis() - startShuttingDownTime < DEFAULT_SHUTDOWN_GRACE_PERIOD) {
-			try {
-				Thread.sleep(DEFAULT_REST_AND_WAIT_PERIOD);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
-
-		if (!executor.isShutdown())
-			executor.shutdownNow();
-
-		try {
-			selector.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		try {
-			server.socket().close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		try {
-			server.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-
-		synchronized (shutdownLock) {
-			shutdownLock.notify();
-		}
-		this.state = STATE_SHUTDOWN;
-		this.processor.shutdownCompleted();
+		internalFullShutdownCleanup();
 	}
 
 	public static void reply(SeriDataPackage datapack, Serializable objectToSend)
@@ -239,12 +213,13 @@ public class SeriServer implements Runnable {
 	}
 
 	private void handleConnection(SelectionKey key) throws IOException {
+
 		try {
 			if (key.isConnectable()) {
 				((SocketChannel) key.channel()).finishConnect();
+
 			}
 			if (key.isAcceptable()) {
-
 				// accept connection
 				SocketChannel client = server.accept();
 				if (client != null) {
@@ -259,7 +234,7 @@ public class SeriServer implements Runnable {
 			}
 		} catch (CancelledKeyException e) {
 			if (this.state == STATE_RUNNING) {
-				throw new RuntimeException(e);
+				throw e;
 			}
 		}
 	}
@@ -350,11 +325,11 @@ public class SeriServer implements Runnable {
 		this.timeout = timeout;
 	}
 
-	public SeriProcessor getProcessor() {
+	public SeriEventHandler getProcessor() {
 		return processor;
 	}
 
-	public void setProcessor(SeriProcessor processor) {
+	public void setProcessor(SeriEventHandler processor) {
 		this.processor = processor;
 	}
 
@@ -382,18 +357,22 @@ public class SeriServer implements Runnable {
 
 		@Override
 		public void run() {
+
 			try {
 				SeriDataPackage object = null;
-				synchronized (this.key) {
-					object = read(key);
-				}
-				if (object != null)
-					outer.getProcessor().process(object);
+				do {
+					synchronized (this.key) {
+						object = read(key);
+						if (object != null)
+							outer.getProcessor().messageArrived(object);
+
+					}
+				} while (object != null);
 
 			} catch (ClosedChannelException e) {
 				// closed anyway
 			} catch (IOException e) {
-				log.error(logTag
+				log.error(tag
 						+ "SeriWorker failed due to I/O. Raising exception");
 				throw new RuntimeException(e);
 			}
@@ -402,14 +381,131 @@ public class SeriServer implements Runnable {
 	}
 
 	public String getLogTag() {
-		return logTag;
+		return tag;
 	}
 
 	public void setLogTag(String logTag) {
-		this.logTag = "[ " + logTag + " ] ";
+		if (logTag == null)
+			return;
+
+		this.tag = "[ " + logTag + " ] ";
 	}
 
 	public void setLogLevel(Level level) {
 		log.setLevel(level);
+	}
+
+	private void internalFullShutdownCleanup() {
+		log.debug(tag + "Shutting down.");
+
+		long startShuttingDownTime = System.currentTimeMillis();
+
+		executor.shutdown();
+
+		while (!executor.isShutdown()
+				&& System.currentTimeMillis() - startShuttingDownTime < DEFAULT_SHUTDOWN_GRACE_PERIOD) {
+			try {
+				Thread.sleep(DEFAULT_REST_AND_WAIT_PERIOD);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+
+		if (!executor.isShutdown())
+			executor.shutdownNow();
+
+		try {
+			selector.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		try {
+			server.socket().close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		try {
+			server.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		synchronized (shutdownLock) {
+			shutdownLock.notify();
+		}
+
+		this.state = STATE_SHUTDOWN;
+		this.processor.shutdownCompleted();
+
+	}
+
+	// / Here fore reference, does not work properly
+	@SuppressWarnings("unused")
+	private SeriDataPackage readWait(SelectionKey key) throws IOException {
+		Selector readSelector = Selector.open();
+
+		// de-registers the global and registers the new
+		key.channel().register(this.selector, 0);
+		SelectionKey tmpKey = key.channel().register(readSelector,
+				SelectionKey.OP_READ);
+
+		// client.register(selector, SelectionKey.OP_READ);
+
+		SocketChannel socket = (SocketChannel) tmpKey.channel();
+
+		ByteBuffer lengthByteBuffer = ByteBuffer.wrap(new byte[4]);
+
+		readSelector.select(this.timeout);
+		// read from socket, should return the data size
+		int err = socket.read(lengthByteBuffer);
+
+		// no error
+		if (err != -1) {
+
+			int serisize = lengthByteBuffer.getInt(0);
+			if (serisize == 0)
+				return null;
+
+			ByteBuffer dataByteBuffer = ByteBuffer.allocate(serisize);
+
+			while (true) {
+				readSelector.select(this.timeout);
+
+				err = socket.read(dataByteBuffer);
+				// error reading from socket
+				if (err == -1) {
+					break;
+				}
+
+				if (dataByteBuffer.remaining() == 0) {
+
+					ObjectInputStream ois = new ObjectInputStream(
+							new ByteArrayInputStream(dataByteBuffer.array()));
+					Serializable retObj;
+					try {
+						retObj = (Serializable) ois.readObject();
+					} catch (ClassNotFoundException e) {
+						throw new RuntimeException(
+								"Serializable not found? Really weird!", e);
+					}
+					// clean up
+					dataByteBuffer = null;
+
+					SeriDataPackage ret = new SeriDataPackage();
+					ret.setObject(retObj);
+					ret.setKey(key);
+					ret.setSocket(socket);
+					readSelector.close();
+					return ret;
+				}
+			}
+		}
+
+		socket.close();
+		tmpKey.cancel();
+		readSelector.close();
+		key.cancel();
+		return null;
 	}
 }

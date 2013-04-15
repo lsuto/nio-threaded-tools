@@ -7,9 +7,9 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashMap;
 
-import org.feiteira.network.SeriClient;
+import org.feiteira.network.SeriConnection;
 import org.feiteira.network.SeriDataPackage;
-import org.feiteira.network.SeriProcessor;
+import org.feiteira.network.SeriEventHandler;
 import org.feiteira.network.SeriServer;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -17,7 +17,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class TestStuff {
+public class TestSeri {
 
 	@BeforeClass
 	public static void setUpBeforeClass() throws Exception {
@@ -45,19 +45,19 @@ public class TestStuff {
 		SeriServer server = new SeriServer(port, 3);
 
 		System.out.println("Starting client.");
-		SeriClient client = new SeriClient("localhost", port);
+		SeriConnection client = new SeriConnection("localhost", port);
 
-		server.setProcessor(new SeriProcessor() {
+		server.setProcessor(new SeriEventHandler() {
 
 			@Override
-			public void process(SeriDataPackage pack) {
+			public void messageArrived(SeriDataPackage pack) {
 				System.out.println("[Server] Reading message: "
 						+ pack.getObject());
 				try {
 
 					if (pack.getObject() != null) {
 						String msg = pack.getObject().toString();
-						SeriServer.reply(pack, msg+msg);
+						SeriServer.reply(pack, msg + msg);
 					} else
 						SeriServer.reply(pack, null);
 
@@ -71,7 +71,7 @@ public class TestStuff {
 			@Override
 			public void shutdownCompleted() {
 				// TODO Auto-generated method stub
-				
+
 			}
 		});
 
@@ -88,14 +88,14 @@ public class TestStuff {
 		client.send(null);
 
 		assertNull(client.read().getObject());
-		
-		server.setProcessor(new SeriProcessor() {
-			
+
+		server.setProcessor(new SeriEventHandler() {
+
 			@Override
-			public void process(SeriDataPackage pack) {
+			public void messageArrived(SeriDataPackage pack) {
 				int v = (Integer) pack.getObject();
 				try {
-					SeriServer.reply(pack, new Integer(v*v));
+					SeriServer.reply(pack, new Integer(v * v));
 				} catch (IOException e) {
 					e.printStackTrace();
 					fail();
@@ -105,11 +105,10 @@ public class TestStuff {
 
 			@Override
 			public void shutdownCompleted() {
-				// TODO Auto-generated method stub
-				
+				System.out.println("Shutdown event");
 			}
 		});
-		
+
 		int MX = 100;
 		for (int cnt = 0; cnt < MX; cnt++) {
 			client.send(new Integer(cnt));
