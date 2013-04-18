@@ -1,12 +1,12 @@
 package tests.org.feiteira.network;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
-import java.io.Serializable;
-import java.util.Collection;
-import java.util.HashMap;
 
+import org.apache.log4j.Logger;
 import org.feiteira.network.SeriConnection;
 import org.feiteira.network.SeriDataPackage;
 import org.feiteira.network.SeriEventHandler;
@@ -18,6 +18,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class TestSeri {
+	private static Logger log = Logger.getLogger(TestSeri.class);
 
 	@BeforeClass
 	public static void setUpBeforeClass() throws Exception {
@@ -75,12 +76,13 @@ public class TestSeri {
 			}
 		});
 
-		System.out.println("[Client] Sending message: " + msg);
+		log.info("[Client] Sending message: " + msg);
 		client.send(msg);
+		log.debug("Sent");
 
 		SeriDataPackage fromServer = client.read();
 
-		System.out.println("From Server: " + fromServer.getObject());
+		log.info("From Server: " + fromServer.getObject());
 
 		assertEquals(msg + msg, fromServer.getObject());
 
@@ -111,15 +113,16 @@ public class TestSeri {
 
 		int MX = 100;
 		for (int cnt = 0; cnt < MX; cnt++) {
+			log.debug("Sending: " + cnt);
 			client.send(new Integer(cnt));
 			SeriDataPackage pack = client.read();
-			System.out.println("Client [" + cnt + "]: " + pack.getObject());
+//			log.debug("Client [" + cnt + "]: " + pack.getObject());
 			assertEquals(cnt * cnt, pack.getObject());
 		}
 
-		System.out.println("Client shutting down");
-		client.shutdown();
-		System.out.println("Server shutting down");
+		log.info("Client shutting down");
+		client.close();
+		log.info("Server shutting down");
 		server.shutdown();
 	}
 }

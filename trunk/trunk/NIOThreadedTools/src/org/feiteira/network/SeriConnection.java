@@ -16,7 +16,7 @@ public class SeriConnection {
 	private static Logger log = Logger.getLogger(SeriConnection.class);
 
 	public static final int DEFAULT_SLEEP_TIME = 10;
-	public static final int DEFAULT_TIMEOUT = 5000;
+	public static final int DEFAULT_TIMEOUT = 10000;
 
 	private String host;
 	private int port;
@@ -25,7 +25,7 @@ public class SeriConnection {
 	private int sleep_time;
 	private int timeout;
 
-	private String logTag = "";
+	private String tag = "";
 
 	public SeriConnection(String host, int port) throws IOException {
 		this.host = host;
@@ -64,7 +64,6 @@ public class SeriConnection {
 			// read from socket, should return the data size
 			int err = socket.read(lengthByteBuffer);
 			if (err == -1) {
-
 				socket.close();
 				return null;
 			}
@@ -134,13 +133,7 @@ public class SeriConnection {
 		oos.close();
 		final ByteBuffer wrap = ByteBuffer.wrap(baos.toByteArray());
 		wrap.putInt(0, baos.size() - 4);
-		try {
-			socket.write(wrap);
-		} catch (IOException e) {
-			log.warn(objectToSend);
-			throw new IOException(e);
-		}
-
+		socket.write(wrap);
 	}
 
 	public String getHost() {
@@ -167,7 +160,7 @@ public class SeriConnection {
 		this.sleep_time = sleep_time;
 	}
 
-	public void shutdown() {
+	public void close() {
 		try {
 			this.socket.close();
 		} catch (IOException e) {
@@ -175,11 +168,11 @@ public class SeriConnection {
 		}
 	}
 
-	public String getLogTag() {
-		return logTag;
+	public String getTag() {
+		return tag;
 	}
 
-	public void setLogTag(String logTag) {
-		this.logTag = logTag;
+	public void seTag(String logTag) {
+		this.tag = logTag;
 	}
 }
