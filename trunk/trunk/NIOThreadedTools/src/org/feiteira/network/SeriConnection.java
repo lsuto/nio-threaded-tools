@@ -124,7 +124,7 @@ public class SeriConnection {
 		}
 	}
 
-	public void send(Serializable objectToSend) throws IOException {
+	public synchronized void send(Serializable objectToSend) throws IOException {
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		for (int i = 0; i < 4; i++)
 			baos.write(0);
