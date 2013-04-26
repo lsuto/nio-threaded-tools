@@ -33,7 +33,13 @@ public class SeriConnection {
 		this.sleep_time = DEFAULT_SLEEP_TIME;
 		this.timeout = DEFAULT_TIMEOUT;
 
-		reconnect();
+		try {
+			reconnect();
+		} catch (IOException ioe) {
+			log.warn("Could not connect to server, retrying once.", ioe);
+			reconnect();
+			log.warn("Reconnect successful");
+		}
 	}
 
 	public void reconnect() throws IOException {

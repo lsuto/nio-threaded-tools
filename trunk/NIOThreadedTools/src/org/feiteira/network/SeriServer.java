@@ -33,7 +33,7 @@ public class SeriServer implements Runnable {
 	public static final int DEFAULT_THREAD_COUNT = 10;
 	public static final int DEFAULT_TIMEOUT = 15000;
 	public static final int DEFAULT_SELECTOR_TIMEOUT = 1000;
-	public static final int DEFAULT_SHUTDOWN_GRACE_PERIOD = 5000;
+	public static final int DEFAULT_SHUTDOWN_GRACE_PERIOD = 15000;
 	public static final int DEFAULT_REST_AND_WAIT_PERIOD = 300;
 
 	private Selector accept_selector;
@@ -45,7 +45,7 @@ public class SeriServer implements Runnable {
 	private int port;
 	Vector<SeriDataPackage> dataStore;
 	private Thread tread;
-	private SeriEventHandler processor = null;
+	private SeriEventHandler eventHandler = null;
 	private SeriWorker workers[];
 
 	private Object shutdownLock = null;
@@ -180,7 +180,6 @@ public class SeriServer implements Runnable {
 
 	public void shutdown() {
 		this.shutdownRequestTime = System.currentTimeMillis();
-
 		try {
 			do {
 				synchronized (shutdownLock) {
@@ -194,9 +193,8 @@ public class SeriServer implements Runnable {
 		} catch (InterruptedException e) {
 			// best effort here.. hey! we tried :)
 			this.state = STATE_SHUTDOWN;
-			e.printStackTrace();
+			log.warn("Shutdown Interrupted", e);
 		}
-
 	}
 
 	public void shutdownASYNC() {
@@ -294,12 +292,12 @@ public class SeriServer implements Runnable {
 		this.timeout = timeout;
 	}
 
-	public SeriEventHandler getProcessor() {
-		return processor;
+	public SeriEventHandler getEventHandler() {
+		return eventHandler;
 	}
 
-	public void setProcessor(SeriEventHandler processor) {
-		this.processor = processor;
+	public void setProcessor(SeriEventHandler eventHandler) {
+		this.eventHandler = eventHandler;
 	}
 
 	public int getPort() {
@@ -347,7 +345,6 @@ public class SeriServer implements Runnable {
 		@Override
 		public void run() {
 			log.debug("Running " + id);
-			boolean shuttingDown = false;
 
 			while (outer.isRunning() || !outer.graceEnded()) {
 				try {
@@ -390,7 +387,7 @@ public class SeriServer implements Runnable {
 
 						// log.debug(id + " OBJ " + object.getObject());
 						if (object != null)
-							outer.getProcessor().messageArrived(object);
+							outer.getEventHandler().messageArrived(object);
 					}
 				} catch (ClosedChannelException e) {
 					// closed anyway
@@ -463,7 +460,7 @@ public class SeriServer implements Runnable {
 			shutdownLock.notify();
 		}
 
-		this.processor.shutdownCompleted();
+		this.eventHandler.shutdownCompleted();
 	}
 
 	private void sleep(long m) {
