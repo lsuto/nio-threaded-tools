@@ -99,7 +99,6 @@ public class SeriServer implements Runnable {
 			workers[cnt] = new SeriWorker(cnt);
 			workers[cnt].start();
 		}
-
 	}
 
 	public SeriServer(int port, int nthreads) throws IOException {
@@ -235,7 +234,7 @@ public class SeriServer implements Runnable {
 
 			if (dataByteBuffer.remaining() == 0) {
 
-				ObjectInputStream ois = new ObjectInputStream(
+				ContextualObjectInputStream ois = new ContextualObjectInputStream(
 						new ByteArrayInputStream(dataByteBuffer.array()));
 				Serializable retObj;
 				try {
@@ -243,6 +242,8 @@ public class SeriServer implements Runnable {
 				} catch (ClassNotFoundException e) {
 					throw new RuntimeException(
 							"Serializable not found? Really weird!", e);
+				} finally {
+					ois.close();
 				}
 				// clean up
 				dataByteBuffer = null;
@@ -296,7 +297,7 @@ public class SeriServer implements Runnable {
 		return eventHandler;
 	}
 
-	public void setProcessor(SeriEventHandler eventHandler) {
+	public void setEventListner(SeriEventHandler eventHandler) {
 		this.eventHandler = eventHandler;
 	}
 
