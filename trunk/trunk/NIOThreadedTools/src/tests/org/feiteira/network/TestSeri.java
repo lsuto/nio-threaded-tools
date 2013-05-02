@@ -7,7 +7,7 @@ import static org.junit.Assert.fail;
 import java.io.IOException;
 
 import org.apache.log4j.Logger;
-import org.feiteira.network.SeriConnection;
+import org.feiteira.network.SeriClient;
 import org.feiteira.network.SeriDataPackage;
 import org.feiteira.network.SeriEventHandler;
 import org.feiteira.network.SeriServer;
@@ -46,9 +46,9 @@ public class TestSeri {
 		SeriServer server = new SeriServer(port, 3);
 
 		System.out.println("Starting client.");
-		SeriConnection client = new SeriConnection("localhost", port);
+		SeriClient client = new SeriClient("localhost", port);
 
-		server.setProcessor(new SeriEventHandler() {
+		server.setEventListner(new SeriEventHandler() {
 
 			@Override
 			public void messageArrived(SeriDataPackage pack) {
@@ -91,7 +91,7 @@ public class TestSeri {
 
 		assertNull(client.read().getObject());
 
-		server.setProcessor(new SeriEventHandler() {
+		server.setEventListner(new SeriEventHandler() {
 
 			@Override
 			public void messageArrived(SeriDataPackage pack) {
@@ -116,7 +116,6 @@ public class TestSeri {
 			log.debug("Sending: " + cnt);
 			client.send(new Integer(cnt));
 			SeriDataPackage pack = client.read();
-//			log.debug("Client [" + cnt + "]: " + pack.getObject());
 			assertEquals(cnt * cnt, pack.getObject());
 		}
 
